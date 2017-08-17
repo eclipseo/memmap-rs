@@ -625,7 +625,7 @@ mod test {
     extern crate tempdir;
 
     use std::fs::OpenOptions;
-    use std::io::{ErrorKind, Read, Write};
+    use std::io::{Read, Write};
     use std::sync::Arc;
     use std::thread;
 
@@ -703,7 +703,7 @@ mod test {
 
     #[test]
     fn map_anon_zero_len() {
-        assert_eq!(ErrorKind::InvalidInput, MmapOptions::new().map_anon().unwrap_err().kind());
+        assert!(MmapOptions::new().map_anon().is_err())
     }
 
     #[test]
@@ -836,26 +836,31 @@ mod test {
         });
     }
 
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    fn jit_x86(mut mmap: MmapMut) {
+        use std::mem;
+        mmap[0] = 0xB8;   // mov eax, 0xAB
+        mmap[1] = 0xAB;
+        mmap[2] = 0x00;
+        mmap[3] = 0x00;
+        mmap[4] = 0x00;
+        mmap[5] = 0xC3;   // ret
+
+        let mmap = mmap.make_exec().unwrap();
+
+        let jitfn: extern "C" fn() -> u8 = unsafe { mem::transmute(mmap.as_ptr()) };
+        assert_eq!(jitfn(), 0xab);
+    }
+
     #[test]
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
-    fn jit_x86() {
-        fn inner(mut mmap: MmapMut) {
-            use std::mem;
-            mmap[0] = 0xB8;   // mov eax, 0xAB
-            mmap[1] = 0xAB;
-            mmap[2] = 0x00;
-            mmap[3] = 0x00;
-            mmap[4] = 0x00;
-            mmap[5] = 0xC3;   // ret
+    fn jit_x86_anon() {
+        jit_x86(MmapMut::map_anon(4096).unwrap());
+    }
 
-            let mmap = mmap.make_exec().unwrap();
-
-            let jitfn: extern "C" fn() -> u8 = unsafe { mem::transmute(mmap.as_ptr()) };
-            assert_eq!(jitfn(), 0xab);
-        }
-
-        inner(MmapMut::map_anon(4096).unwrap());
-
+    #[test]
+    #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
+    fn jit_x86_file() {
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
         let file = OpenOptions::new()
                                .read(true)
@@ -864,9 +869,8 @@ mod test {
                                .open(&tempdir.path().join("jit_x86"))
                                .unwrap();
 
-
         file.set_len(4096).unwrap();
-        inner(unsafe { MmapMut::map_mut(&file).unwrap() });
+        jit_x86(unsafe { MmapMut::map_mut(&file).unwrap() });
     }
 
     #[test]

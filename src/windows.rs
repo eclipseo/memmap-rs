@@ -47,13 +47,11 @@ impl MmapInner {
                                               aligned_len as winapi::SIZE_T);
             kernel32::CloseHandle(handle);
 
-            let file = try!(file.duplicate());
-
             if ptr == ptr::null_mut() {
                 Err(io::Error::last_os_error())
             } else {
                 Ok(MmapInner {
-                    file: Some(file),
+                    file: Some(try!(file.duplicate())),
                     ptr: ptr.offset(alignment as isize),
                     len: len as usize,
                 })
