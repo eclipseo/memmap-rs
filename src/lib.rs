@@ -874,7 +874,7 @@ mod test {
     }
 
     #[test]
-    fn offset_make_read_only() {
+    fn mprotect_file() {
         let tempdir = tempdir::TempDir::new("mmap").unwrap();
         let path = tempdir.path().join("mmap");
 
@@ -883,31 +883,42 @@ mod test {
                                .write(true)
                                .create(true)
                                .open(&path)
-                               .unwrap();
+                               .expect("open");
+        file.set_len(256 as u64).expect("set_len");
 
-        file.set_len(500000 as u64).unwrap();
+        let mmap = unsafe { MmapMut::map_mut(&file).expect("map_mut") };
 
-        let offset = 5099;
-        let len = 50050;
-        let mut mmap = unsafe { MmapOptions::new().offset(offset)
-                                                  .len(len)
-                                                  .map_mut(&file)
-                                                  .unwrap() };
-        assert_eq!(len, mmap.len());
+        let mmap = mmap.make_read_only().expect("make_read_only");
+        let mmap = mmap.make_mut().expect("make_mut");
+        let _ = mmap.make_exec().expect("make_exec");
+    }
 
-        let zeros = vec![0; len];
-        let incr: Vec<_> = (0..len).map(|i| i as u8).collect();
+    #[test]
+    fn mprotect_copy() {
+        let tempdir = tempdir::TempDir::new("mmap").unwrap();
+        let path = tempdir.path().join("mmap");
 
-        // check that the mmap is empty
-        assert_eq!(&zeros[..], &mmap[..]);
+        let file = OpenOptions::new()
+                               .read(true)
+                               .write(true)
+                               .create(true)
+                               .open(&path)
+                               .expect("open");
+        file.set_len(256 as u64).expect("set_len");
 
-        // write values into the mmap
-        (&mut mmap[..]).write_all(&incr[..]).unwrap();
+        let mmap = unsafe { MmapOptions::new().map_copy(&file).expect("map_mut") };
 
-        // change to read-only.
-        let mmap = mmap.make_read_only().unwrap();
+        let mmap = mmap.make_read_only().expect("make_read_only");
+        let mmap = mmap.make_mut().expect("make_mut");
+        let _ = mmap.make_exec().expect("make_exec");
+    }
 
-        // read values back
-        assert_eq!(&incr[..], &mmap[..]);
+    #[test]
+    fn mprotect_anon() {
+        let mmap = MmapMut::map_anon(256).expect("map_mut");
+
+        let mmap = mmap.make_read_only().expect("make_read_only");
+        let mmap = mmap.make_mut().expect("make_mut");
+        let _ = mmap.make_exec().expect("make_exec");
     }
 }
