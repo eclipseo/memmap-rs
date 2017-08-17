@@ -846,7 +846,7 @@ mod test {
         mmap[4] = 0x00;
         mmap[5] = 0xC3;   // ret
 
-        let mmap = mmap.make_exec().unwrap();
+        let mmap = mmap.make_exec().expect("make_exec");
 
         let jitfn: extern "C" fn() -> u8 = unsafe { mem::transmute(mmap.as_ptr()) };
         assert_eq!(jitfn(), 0xab);
@@ -867,10 +867,10 @@ mod test {
                                .write(true)
                                .create(true)
                                .open(&tempdir.path().join("jit_x86"))
-                               .unwrap();
+                               .expect("open");
 
-        file.set_len(4096).unwrap();
-        jit_x86(unsafe { MmapMut::map_mut(&file).unwrap() });
+        file.set_len(4096).expect("set_len");
+        jit_x86(unsafe { MmapMut::map_mut(&file).expect("map_mut") });
     }
 
     #[test]
