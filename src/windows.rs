@@ -75,14 +75,14 @@ impl MmapInner {
 
     pub fn map_mut(len: usize, file: &File, offset: usize) -> io::Result<MmapInner> {
         MmapInner::new(file,
-                       winapi::PAGE_EXECUTE_READWRITE,
+                       winapi::PAGE_READWRITE,
                        winapi::FILE_MAP_WRITE,
                        offset, len)
     }
 
     pub fn map_copy(len: usize, file: &File, offset: usize) -> io::Result<MmapInner> {
         MmapInner::new(file,
-                       winapi::PAGE_EXECUTE_READWRITE,
+                       winapi::PAGE_READONLY,
                        winapi::FILE_MAP_COPY,
                        offset, len)
     }
